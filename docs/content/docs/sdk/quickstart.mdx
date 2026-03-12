@@ -1,0 +1,126 @@
+---
+title: SDK Quickstart
+description: Use @pipelyn/sdk from Bun or browser runtimes
+---
+
+## Install
+
+In this monorepo, SDK source is in `packages/sdk`.
+
+## Create Client
+
+```ts
+import { createPipelynClient } from '@pipelyn/sdk'
+
+const client = createPipelynClient({
+  baseUrl: 'http://localhost:7990/api',
+  defaultPreset: 'web',
+})
+```
+
+## Optimize Media
+
+```ts
+const file = new File([bytes], 'sample.jpg', { type: 'image/jpeg' })
+
+const result = await client.optimizeImage({
+  media: file,
+  preset: 'mobile',
+})
+
+console.log(result.savedPercent)
+console.log(result.strategy)
+```
+
+## Optimize Video
+
+```ts
+const video = new File([videoBytes], 'clip.mp4', { type: 'video/mp4' })
+
+const result = await client.optimizeVideo({
+  media: video,
+  preset: 'low-bandwidth',
+})
+
+console.log(result.outputBytes)
+```
+
+## Typed Error Handling
+
+```ts
+import { PipelynError } from '@pipelyn/sdk'
+
+try {
+  await client.optimizeMedia({ media: file })
+} catch (error) {
+  if (error instanceof PipelynError) {
+    console.log(error.code, error.status, error.retriable)
+  }
+}
+```
+
+## Runtime Metadata
+
+`OptimizeMediaResult` includes fields for pipeline and media metadata:
+
+- `strategy`
+- `inputDurationSec`, `outputDurationSec`
+- `inputWidth`, `outputWidth`
+
+## Read Presets
+
+```ts
+const presets = await client.getPresets()
+console.log(presets.defaultPreset)
+
+## API Key Authentication
+
+When the server is configured with `PIPELYN_API_KEYS`, pass your key on `createPipelynClient`:
+
+```ts
+const client = createPipelynClient({
+  baseUrl: 'https://your-instance.example.com/api',
+  apiKey: process.env.PIPELYN_API_KEY,
+})
+```
+
+The SDK injects `x-api-key: <key>` on every request automatically.
+
+## Async Jobs
+
+Use `submitJob` when you don't want to block on encoding (large videos, batch workflows):
+
+```ts
+// Submit and get a job ID immediately
+const job = await client.submitJob({
+  media: videoFile,
+  preset: 'low-bandwidth',
+})
+console.log(job.jobId, job.status) // "pending"
+
+// Poll until done (default: 5-minute timeout, 1 s poll interval)
+const result = await client.waitForJob(job.jobId)
+
+if (result.downloadUrl) {
+  // Fetch the optimized file from the returned URL
+  const res = await fetch(result.downloadUrl)
+  const blob = await res.blob()
+}
+```
+
+Poll manually if you need finer control:
+
+```ts
+const status = await client.getJobStatus(job.jobId)
+if (status.status === 'done') {
+  console.log(status.result?.savedPercent)
+}
+```
+
+## Usage Metering
+
+```ts
+const usage = await client.getUsage()
+console.log(`${usage.totalJobs} jobs, ${(usage.totalSavedBytes / 1e6).toFixed(1)} MB saved`)
+```
+```

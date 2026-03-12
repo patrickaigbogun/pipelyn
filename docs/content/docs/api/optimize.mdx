@@ -1,0 +1,50 @@
+---
+title: Optimize Endpoint
+description: Multipart API for image and video optimization
+---
+
+## Route
+
+- `POST /api/media/optimize`
+
+## Request
+
+Content type: `multipart/form-data`
+
+Fields:
+
+- `media`: required file
+- `preset`: optional (`mobile`, `web`, `low-bandwidth`)
+
+## Success Response
+
+Binary response body containing optimized media.
+
+Headers:
+
+- `content-type`
+- `content-disposition`
+- `x-pipelyn-kind`
+- `x-pipelyn-preset`
+- `x-pipelyn-strategy`
+- `x-pipelyn-input-bytes`
+- `x-pipelyn-output-bytes`
+- `x-pipelyn-saved-bytes`
+- `x-pipelyn-saved-percent`
+- `x-pipelyn-input-duration`
+- `x-pipelyn-output-duration`
+- `x-pipelyn-input-width`
+- `x-pipelyn-output-width`
+
+## Guardrails
+
+- Input size limit is enforced server-side (default `120MB`).
+- ffprobe metadata extraction runs before/after optimization.
+- ffmpeg has per-job timeouts (image and video) to avoid runaway jobs.
+- API returns structured errors with `code` when optimization fails.
+
+## Presets Endpoint
+
+- `GET /api/media/presets`
+
+Returns default preset and all preset definitions.

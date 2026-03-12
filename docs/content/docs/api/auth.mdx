@@ -1,0 +1,97 @@
+---
+title: Authentication & Usage
+description: API key authentication and usage metering
+---
+
+## Authentication
+
+Authentication is **opt-in**. When `PIPELYN_API_KEYS` is not set, all routes are public. To enforce key-based access, set the environment variable to a comma-separated list of valid keys:
+
+```bash
+PIPELYN_API_KEYS=sk-prod-abc123,sk-staging-xyz456
+```
+
+Clients must send the key on every request via one of:
+
+```http
+# Header (preferred)
+x-api-key: sk-prod-abc123
+
+# Bearer token
+Authorization: Bearer sk-prod-abc123
+```
+
+The `/api/health` endpoint is **always public** regardless of configuration.
+
+**Unauthorized response (401)**
+
+```json
+{
+  "error": "Unauthorized: valid API key required",
+  "code": "unauthorized"
+}
+```
+
+### SDK configuration
+
+```ts
+import { createPipelynClient } from '@pipelyn/sdk'
+
+const client = createPipelynClient({
+  baseUrl: 'https://your-pipelyn-instance.example.com/api',
+  apiKey: process.env.PIPELYN_API_KEY,
+})
+```
+
+---
+
+## Usage metering
+
+Every successful sync `POST /api/media/optimize` response includes lifetime usage counters in response headers:
+
+| Header | Description |
+|--------|-------------|
+| `x-pipelyn-total-jobs` | Total optimizations since last restart |
+| `x-pipelyn-total-bytes-saved` | Total bytes saved across all jobs |
+
+To query the full snapshot at any time:
+
+```http
+GET /api/usage
+```
+
+```json
+{
+  "totalJobs": 142,
+  "totalInputBytes": 891234567,
+  "totalOutputBytes": 104234000,
+  "totalSavedBytes": 787000567
+}
+```
+
+### SDK
+
+```ts
+const stats = await client.getUsage()
+console.log(`${stats.totalJobs} jobs, ${(stats.totalSavedBytes / 1e6).toFixed(1)} MB saved total`)
+```
+
+> **Note:** Counters are in-process and reset on server restart. Mount an external store or log-aggregation pipeline for persistent metering.
+
+---
+
+## Environment variable reference
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PIPELYN_API_KEYS` | *(unset)* | Comma-separated list of valid bearer tokens. Unset = auth disabled |
+| `PIPELYN_MAX_INPUT_BYTES` | `125829120` (120 MB) | Maximum accepted upload size |
+| `PIPELYN_OUTPUT_DIR` | `.pipelyn-store` | Output directory for local storage adapter |
+| `PIPELYN_S3_BUCKET` | *(unset)* | S3 bucket name — enables S3 storage adapter |
+| `PIPELYN_S3_ACCESS_KEY_ID` | *(unset)* | S3 access key |
+| `PIPELYN_S3_SECRET_ACCESS_KEY` | *(unset)* | S3 secret key |
+| `PIPELYN_S3_REGION` | `us-east-1` | S3 region |
+| `PIPELYN_S3_ENDPOINT` | *(unset)* | Custom S3-compatible endpoint (MinIO, R2, etc.) |
+| `PIPELYN_FFPROBE_TIMEOUT_MS` | `15000` | Max time for ffprobe metadata extraction |
+| `PIPELYN_IMAGE_TIMEOUT_MS` | `30000` | Max encoding time per image job |
+| `PIPELYN_VIDEO_TIMEOUT_MS` | `240000` | Max encoding time per video job |

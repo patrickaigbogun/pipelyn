@@ -1,0 +1,45 @@
+---
+title: Getting Started
+description: Run the Pipelyn monorepo with Dex, Bun, and FumaDocs
+---
+
+## Requirements
+
+- Bun `1.3+`
+- Dex CLI
+- ffmpeg and ffprobe
+
+## Workspace Layout
+
+- `apps/web`: Dex app with UI and API runtime
+- `packages/sdk`: Bun-first SDK for integrations
+- `docs`: FumaDocs documentation site
+
+## Development Commands
+
+From repository root:
+
+```bash
+bun run dev:web
+```
+
+```bash
+bun run dev:docs
+```
+
+## Type Checks
+
+```bash
+bun run check
+```
+
+## First API Test
+
+Start the web server, then send multipart form data to:
+
+- `POST /api/media/optimize`
+
+Use field names:
+
+- `media`: binary file
+- `preset`: one of `mobile`, `web`, `low-bandwidth`

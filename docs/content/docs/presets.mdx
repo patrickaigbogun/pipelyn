@@ -1,0 +1,29 @@
+---
+title: Presets
+description: Built-in optimization profiles for compatibility and speed
+---
+
+Pipelyn ships three default presets:
+
+## `mobile`
+
+- Lower max width and bitrate for app feeds and constrained networks.
+- Good default for mid-range device performance.
+
+## `web`
+
+- Balanced quality and bandwidth for modern desktop/mobile web.
+- Default profile when none is specified.
+
+## `low-bandwidth`
+
+- Aggressive compression for poor network conditions.
+- Best for previews, messaging, and lightweight delivery.
+
+## Server Endpoint
+
+Use:
+
+- `GET /api/media/presets`
+
+to read runtime preset definitions from the API.

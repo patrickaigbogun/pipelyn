@@ -1,0 +1,12 @@
+i wanna create a product that does image and video optimisation
+for sites and mobile apps
+
+it allows you upload it and select your target devices and the optimisation is made immediately to your image/video
+
+i wanna do this as a ui thing and also as a dev tool to be used on top of your existing product, 
+so an sdk you install and call its api on your media, before you store or before you serve, depending on your design
+
+it will essentially be an ffmpeg wrapper so very lightweight and very, very, very fast and can do a lot
+
+the main goal, is media that will have extensive compatibility, low storage, no loss in quality
+and fast to stream and download onto devices.

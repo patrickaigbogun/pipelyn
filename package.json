@@ -1,0 +1,22 @@
+{
+  "name": "pipelyn",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "apps/*/packages/*",
+    "packages/*",
+    "docs"
+  ],
+  "scripts": {
+    "dev:web": "bun run --cwd apps/web dev",
+    "dev:docs": "bun run --cwd docs dev",
+    "build:web": "bun run --cwd apps/web build",
+    "build:docs": "bun run --cwd docs build",
+    "build:sdk": "bun run --cwd packages/sdk build",
+    "typecheck:web": "bun run --cwd apps/web generate && bunx tsc -p apps/web/tsconfig.json --noEmit",
+    "typecheck:sdk": "bun run --cwd packages/sdk typecheck",
+    "typecheck:docs": "bun run --cwd docs types:check",
+    "check": "bun run typecheck:web && bun run typecheck:sdk && bun run typecheck:docs"
+  }
+}

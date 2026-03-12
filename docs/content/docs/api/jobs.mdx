@@ -1,0 +1,101 @@
+---
+title: Async Jobs
+description: Submit media optimization jobs asynchronously and poll for results
+---
+
+## Overview
+
+`POST /api/media/jobs` accepts the same multipart form as the sync `/optimize` endpoint, but returns a **job ID immediately** without blocking on encoding. You then poll `GET /api/media/jobs/:id` until the job reaches a terminal state.
+
+Use async jobs for:
+- Large videos where you don't want to hold an HTTP connection open
+- Batch workflows that fan-out to multiple jobs in parallel
+- SDK integrations accessed via `submitJob` + `waitForJob`
+
+---
+
+## Submit a job
+
+```http
+POST /api/media/jobs
+Content-Type: multipart/form-data
+
+media=<file>
+preset=low-bandwidth   # optional, default: web
+```
+
+**202 Accepted**
+
+```json
+{
+  "jobId": "5c3a1b2e-...",
+  "status": "pending",
+  "createdAt": 1741694400000
+}
+```
+
+---
+
+## Poll job status
+
+```http
+GET /api/media/jobs/:id
+```
+
+| Field | Description |
+|-------|-------------|
+| `status` | `pending` \| `processing` \| `done` \| `failed` |
+| `result` | Present when `status === "done"` — same metadata as sync optimize |
+| `downloadUrl` | Pre-signed S3 URL (1 h TTL) or direct download URL when using local storage |
+| `error` | Present when `status === "failed"` — includes `message` and `code` |
+
+**Example — job done**
+
+```json
+{
+  "jobId": "5c3a1b2e-...",
+  "status": "done",
+  "preset": "low-bandwidth",
+  "filename": "clip.mp4",
+  "inputBytes": 4200000,
+  "result": {
+    "kind": "video",
+    "strategy": "video-webm-vp9",
+    "contentType": "video/webm",
+    "filename": "clip.webm",
+    "outputBytes": 312000,
+    "savedBytes": 3888000,
+    "savedPercent": 92.57,
+    "inputDurationSec": 30,
+    "outputDurationSec": 30,
+    "inputWidth": 1920,
+    "outputWidth": 720
+  },
+  "downloadUrl": "https://..."
+}
+```
+
+---
+
+## Download output
+
+When the storage adapter is **local** (no S3 configured), `downloadUrl` points to:
+
+```http
+GET /api/media/jobs/:id/download
+```
+
+This streams the stored output directly. The response includes:
+- `Content-Type` matching the encoded format
+- `Content-Disposition: attachment; filename="<output filename>"`
+- `Cache-Control: no-store`
+
+---
+
+## Error codes
+
+| HTTP | Code | Description |
+|------|------|-------------|
+| 400 | `invalid-input` | Missing or non-file `media` field |
+| 404 | `not-found` | Job ID does not exist |
+| 409 | `not-ready` | Download requested before job is `done` |

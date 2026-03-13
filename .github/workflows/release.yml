@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # ── Build platform-independent assets ────────────────────────────────
+      - name: Build web assets
+        working-directory: apps/web
+        run: |
+          bun run generate
+          bun run prepare:build
+          bun run prerender
+          bun run build:css
+          bun run build:client
+
+      # ── Cross-compile server binary for every target ─────────────────────
+      - name: Cross-compile server binaries
+        working-directory: apps/web
+        run: |
+          declare -A TARGETS=(
+            [linux-x64]="bun-linux-x64"
+            [linux-arm64]="bun-linux-arm64"
+            [darwin-x64]="bun-darwin-x64"
+            [darwin-arm64]="bun-darwin-arm64"
+            [windows-x64]="bun-windows-x64"
+          )
+          for platform in "${!TARGETS[@]}"; do
+            target="${TARGETS[$platform]}"
+            outname="pipelyn"
+            [[ "$platform" == windows-* ]] && outname="pipelyn.exe"
+            echo "Compiling for $platform ($target) ..."
+            bun build --compile \
+              --target "$target" \
+              core/runtime/server/prod.ts \
+              --outfile "dist-$platform/$outname"
+          done
+
+      # ── Package each platform into a tarball / zip ───────────────────────
+      - name: Package release assets
+        working-directory: apps/web
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          mkdir -p release-assets
+
+          for platform in linux-x64 linux-arm64 darwin-x64 darwin-arm64; do
+            DIR="pipelyn-${VERSION}-${platform}"
+            mkdir -p "$DIR"
+            cp "dist-${platform}/pipelyn"    "$DIR/pipelyn"
+            chmod +x "$DIR/pipelyn"
+            cp -r build/assets              "$DIR/assets"
+            cp    build/index.html          "$DIR/index.html" 2>/dev/null || true
+            cp -r build/__ssg               "$DIR/__ssg"      2>/dev/null || true
+            tar -czf "release-assets/pipelyn-${VERSION}-${platform}.tar.gz" "$DIR"
+            echo "  packaged $DIR.tar.gz"
+          done
+
+          # Windows: zip
+          DIR="pipelyn-${VERSION}-windows-x64"
+          mkdir -p "$DIR"
+          cp "dist-windows-x64/pipelyn.exe" "$DIR/pipelyn.exe"
+          cp -r build/assets                "$DIR/assets"
+          cp    build/index.html            "$DIR/index.html" 2>/dev/null || true
+          cp -r build/__ssg                 "$DIR/__ssg"      2>/dev/null || true
+          zip -rq "release-assets/pipelyn-${VERSION}-windows-x64.zip" "$DIR"
+          echo "  packaged $DIR.zip"
+
+      - name: Generate checksums
+        working-directory: apps/web/release-assets
+        run: sha256sum * > SHA256SUMS
+
+      # ── Publish GitHub Release ────────────────────────────────────────────
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          gh release create "$VERSION" \
+            apps/web/release-assets/* \
+            --title "Pipelyn $VERSION" \
+            --generate-notes \
+            --repo "$GITHUB_REPOSITORY"

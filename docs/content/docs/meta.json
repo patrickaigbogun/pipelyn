@@ -1,4 +1,4 @@
 {
   "title": "Pipelyn Docs",
-  "pages": ["index", "getting-started", "presets", "api", "sdk"]
+  "pages": ["index", "getting-started", "self-hosting", "presets", "api", "sdk"]
 }

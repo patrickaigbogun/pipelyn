@@ -1,0 +1,134 @@
+---
+title: Self-hosting
+description: Install and run Pipelyn on your own server
+---
+
+Pipelyn ships as a single compiled binary that bundles the web UI and API server.
+No Node, no Bun, no runtime dependencies — just the binary and the built assets alongside it.
+
+## One-line install
+
+### Linux / macOS
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/patrickaigbogun/pipelyn/main/install.sh | sh
+```
+
+This downloads the latest release for your platform, verifies the SHA-256 checksum, and
+installs the launcher to `~/.local/bin/pipelyn`.
+
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/patrickaigbogun/pipelyn/main/install.ps1 | iex
+```
+
+Installs to `%LOCALAPPDATA%\pipelyn` and adds it to your user PATH.
+
+### Pin a specific version
+
+```sh
+PIPELYN_VERSION=v1.0.0 \
+  curl -fsSL https://raw.githubusercontent.com/patrickaigbogun/pipelyn/main/install.sh | sh
+```
+
+---
+
+## Manual install
+
+Download the tarball for your platform from the [Releases page](https://github.com/patrickaigbogun/pipelyn/releases), extract it, and run the binary directly.
+
+```sh
+# Example: Linux x64
+VERSION=v1.0.0
+curl -LO "https://github.com/patrickaigbogun/pipelyn/releases/download/${VERSION}/pipelyn-${VERSION}-linux-x64.tar.gz"
+tar -xzf "pipelyn-${VERSION}-linux-x64.tar.gz"
+cd "pipelyn-${VERSION}-linux-x64"
+./pipelyn
+```
+
+Available platforms: `linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, `windows-x64`.
+
+---
+
+## Running the server
+
+```sh
+pipelyn
+# → Dex starter running at 0.0.0.0:7990
+```
+
+Open `http://localhost:7990` in your browser to use the optimizer UI.
+The REST API is available at `http://localhost:7990/api`.
+
+### Environment variables
+
+Copy `.env.example` from the repo to `.env` in your working directory:
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | `7990` | HTTP listen port |
+| `PIPELYN_API_KEYS` | _(none)_ | Comma-separated API keys. When set, all requests require `x-api-key` |
+| `PIPELYN_MAX_INPUT_BYTES` | `125829120` (120 MiB) | Maximum upload size in bytes |
+| `PIPELYN_STORAGE_DRIVER` | `local` | `local` or `s3` |
+| `PIPELYN_S3_ENDPOINT` | | S3-compatible endpoint URL |
+| `PIPELYN_S3_REGION` | | e.g. `auto` for R2 |
+| `PIPELYN_S3_BUCKET` | | Bucket name |
+| `PIPELYN_S3_ACCESS_KEY_ID` | | S3 access key |
+| `PIPELYN_S3_SECRET_ACCESS_KEY` | | S3 secret key |
+| `PIPELYN_S3_PUBLIC_URL` | | Optional CDN prefix for download URLs |
+| `PIPELYN_STORE_DIR` | `.pipelyn-store` | Local job output directory |
+
+---
+
+## Docker
+
+A `Dockerfile` is included in the repository that builds and runs the full stack:
+
+```sh
+# Build
+docker build -t pipelyn https://github.com/patrickaigbogun/pipelyn.git
+
+# Run
+docker run -p 7990:7990 pipelyn
+
+# With environment variables
+docker run -p 7990:7990 \
+  -e PIPELYN_API_KEYS="my-secret-key" \
+  -e PIPELYN_MAX_INPUT_BYTES="262144000" \
+  -v "$PWD/.pipelyn-store:/app/.pipelyn-store" \
+  pipelyn
+```
+
+---
+
+## Fly.io
+
+The repo includes a ready-to-use `fly.toml`. To deploy:
+
+```sh
+# First time
+fly launch --no-deploy
+fly secrets set PIPELYN_API_KEYS="your-key"
+fly deploy
+
+# Subsequent deploys
+git tag v1.0.0 && git push origin v1.0.0   # triggers the release workflow
+fly deploy --image ghcr.io/patrickaigbogun/pipelyn:v1.0.0
+```
+
+The default `fly.toml` mounts a persistent volume at `/app/.pipelyn-store` for local job
+storage. Switch to `PIPELYN_STORAGE_DRIVER=s3` and remove the `[mounts]` section for
+stateless deployments across multiple machines.
+
+---
+
+## Keeping up to date
+
+Re-run the install script to upgrade to the latest release:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/patrickaigbogun/pipelyn/main/install.sh | sh
+```
+
+Or re-run the PowerShell command on Windows.

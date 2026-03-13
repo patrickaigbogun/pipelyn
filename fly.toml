@@ -1,0 +1,41 @@
+# fly.toml — Fly.io deployment for Pipelyn
+# Deploy with:  fly deploy
+# First deploy: fly launch --no-deploy  (then fly deploy)
+
+app = "pipelyn"
+primary_region = "lax"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "7990"
+  # Set secrets via:
+  #   fly secrets set PIPELYN_API_KEYS="key1,key2"
+  #   fly secrets set PIPELYN_S3_ACCESS_KEY_ID="..."
+  #   fly secrets set PIPELYN_S3_SECRET_ACCESS_KEY="..."
+
+[http_service]
+  internal_port = 7990
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/health"
+    timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+[mounts]
+  # Persist the local job store between restarts.
+  # Remove this section if you use S3/R2 storage instead.
+  source = "pipelyn_store"
+  destination = "/app/.pipelyn-store"

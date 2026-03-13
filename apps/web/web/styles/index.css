@@ -134,7 +134,8 @@ body::before {
 
 .pipe-dropzone button,
 .pipe-run,
-.pipe-download {
+.pipe-download,
+.pipe-retry {
 	border: 0;
 	padding: 11px 14px;
 	border-radius: 12px;
@@ -151,9 +152,20 @@ body::before {
 
 .pipe-dropzone button:hover,
 .pipe-run:hover,
-.pipe-download:hover {
+.pipe-download:hover,
+.pipe-retry:hover {
 	background: var(--primary-strong);
 	transform: translateY(-1px);
+}
+
+.pipe-retry {
+	padding: 9px 12px;
+	font-size: 0.88rem;
+}
+
+.pipe-retry:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
 }
 
 .pipe-dropzone input {
@@ -295,6 +307,17 @@ body::before {
 	flex-wrap: wrap;
 }
 
+.pipe-job-row small {
+	font-family: "IBM Plex Mono", monospace;
+	font-size: 0.74rem;
+	color: var(--text-muted);
+}
+
+.pipe-job-actions {
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+
 .pipe-job-pill {
 	display: inline-flex;
 	align-items: center;
@@ -367,6 +390,11 @@ body::before {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 	gap: 12px;
 	margin-bottom: 14px;
+}
+
+.pipe-compare-queued .pipe-preview img,
+.pipe-compare-queued .pipe-preview video {
+	max-height: 240px;
 }
 
 .pipe-preview-card {

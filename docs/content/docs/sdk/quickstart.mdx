@@ -72,6 +72,7 @@ try {
 ```ts
 const presets = await client.getPresets()
 console.log(presets.defaultPreset)
+```
 
 ## API Key Authentication
 
@@ -123,4 +124,8 @@ if (status.status === 'done') {
 const usage = await client.getUsage()
 console.log(`${usage.totalJobs} jobs, ${(usage.totalSavedBytes / 1e6).toFixed(1)} MB saved`)
 ```
+
+## End-to-End Example
+
+For a full flow (submit async job, wait, and download output), see `sdk/end-to-end`.
 ```

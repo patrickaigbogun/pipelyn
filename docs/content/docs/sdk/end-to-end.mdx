@@ -1,0 +1,59 @@
+---
+title: SDK End-to-End Example
+description: Full async workflow using @pipelyn/sdk
+---
+
+This example covers a complete async media workflow:
+- Create client
+- Submit a job
+- Wait for completion
+- Download optimized output
+
+```ts
+import { createPipelynClient, PipelynError } from '@pipelyn/sdk'
+
+const client = createPipelynClient({
+  baseUrl: 'http://localhost:7990/api',
+  defaultPreset: 'web',
+  apiKey: process.env.PIPELYN_API_KEY,
+})
+
+async function optimizeLargeVideo(videoBytes: Uint8Array) {
+  const media = new File([videoBytes], 'sample.mp4', { type: 'video/mp4' })
+
+  try {
+    const submitted = await client.submitJob({
+      media,
+      preset: 'low-bandwidth',
+    })
+
+    const finalStatus = await client.waitForJob(submitted.jobId, {
+      pollIntervalMs: 1000,
+      maxWaitMs: 10 * 60_000,
+    })
+
+    if (!finalStatus.downloadUrl) {
+      throw new Error('Missing download URL for completed job')
+    }
+
+    const outputResponse = await fetch(finalStatus.downloadUrl)
+    if (!outputResponse.ok) {
+      throw new Error(`Download failed: ${outputResponse.status}`)
+    }
+
+    const outputBlob = await outputResponse.blob()
+    return {
+      jobId: submitted.jobId,
+      filename: finalStatus.result?.filename ?? 'optimized-media',
+      savedPercent: finalStatus.result?.savedPercent ?? 0,
+      outputBlob,
+    }
+  } catch (error) {
+    if (error instanceof PipelynError) {
+      // Access typed fields from the SDK
+      console.error(error.code, error.status, error.retriable)
+    }
+    throw error
+  }
+}
+```

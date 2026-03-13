@@ -1,11 +1,14 @@
 {
   "name": "@pipelyn/sdk",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -17,9 +20,12 @@
     "build:js": "bun build src/index.ts --target bun --format esm --outfile dist/index.js",
     "build:types": "bunx tsc -p tsconfig.build.json",
     "typecheck": "bunx tsc -p tsconfig.json --noEmit",
-    "clean": "rm -rf dist"
+    "test": "bun test tests",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "bun run build"
   },
   "devDependencies": {
+    "bun-types": "latest",
     "typescript": "^5.9.3"
   }
 }

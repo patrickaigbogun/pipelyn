@@ -48,8 +48,12 @@ type JobState = {
 	status: JobStatus
 	downloadUrl: string | null
 	fileName?: string
+	inputKind?: 'image' | 'video'
+	inputPreviewUrl?: string
 	result?: JobResult
 	error?: { message: string; code: string }
+	retryCount?: number
+	isRetrying?: boolean
 }
 
 const DEFAULT_MAX_INPUT_BYTES = 120 * 1024 * 1024
@@ -80,6 +84,8 @@ export default function Page() {
 	const [maxInputBytes, setMaxInputBytes] = useState(DEFAULT_MAX_INPUT_BYTES)
 	const fileInputRef = useRef<HTMLInputElement>(null)
 	const latestJobStatusRef = useRef<Record<string, JobStatus>>({})
+	const queuedJobFileRef = useRef<Record<string, File>>({})
+	const queuedJobPreviewUrlRef = useRef<Record<string, string>>({})
 
 	useEffect(() => {
 		let mounted = true
@@ -127,6 +133,21 @@ export default function Page() {
 			if (result?.inputUrl) URL.revokeObjectURL(result.inputUrl)
 		}
 	}, [result])
+
+	function clearQueuedJobArtifacts() {
+		for (const previewUrl of Object.values(queuedJobPreviewUrlRef.current)) {
+			URL.revokeObjectURL(previewUrl)
+		}
+		queuedJobPreviewUrlRef.current = {}
+		queuedJobFileRef.current = {}
+		latestJobStatusRef.current = {}
+	}
+
+	useEffect(() => {
+		return () => {
+			clearQueuedJobArtifacts()
+		}
+	}, [])
 
 	useEffect(() => {
 		if (mode === 'sync' && files.length > 1) {
@@ -176,17 +197,63 @@ export default function Page() {
 		if (accepted.length === 0) {
 			setFiles([])
 			setError(`No files accepted. Max per file is ${bytesToLabel(maxInputBytes)}.`)
+			clearQueuedJobArtifacts()
 			setJobs([])
 			return
 		}
 
 		setFiles(mode === 'sync' ? [accepted[0]] : accepted)
 		setError('')
+		clearQueuedJobArtifacts()
 		setJobs([])
 	}
 
 	function updateJob(jobId: string, patch: Partial<JobState>) {
 		setJobs((current) => current.map((job) => (job.jobId === jobId ? { ...job, ...patch } : job)))
+	}
+
+	async function submitQueuedJob(pickedFile: File): Promise<JobState> {
+		const inputPreviewUrl = URL.createObjectURL(pickedFile)
+		const inputKind: 'image' | 'video' = pickedFile.type.startsWith('video/') ? 'video' : 'image'
+		try {
+			const form = new FormData()
+			form.set('media', pickedFile)
+			form.set('preset', preset)
+			const submitRes = await fetch('/api/media/jobs', { method: 'POST', body: form })
+			if (!submitRes.ok) {
+				let details = `request failed (${submitRes.status})`
+				try {
+					const payload = (await submitRes.json()) as { error?: string }
+					details = payload.error ?? details
+				} catch {
+					try {
+						details = await submitRes.text()
+					} catch {
+						// Keep fallback details
+					}
+				}
+				throw new Error(`${pickedFile.name}: ${details}`)
+			}
+
+			const submitted = (await submitRes.json()) as { jobId: string; status: JobStatus }
+			queuedJobFileRef.current[submitted.jobId] = pickedFile
+			queuedJobPreviewUrlRef.current[submitted.jobId] = inputPreviewUrl
+			latestJobStatusRef.current[submitted.jobId] = submitted.status
+
+			return {
+				jobId: submitted.jobId,
+				status: submitted.status,
+				downloadUrl: null,
+				fileName: pickedFile.name,
+				inputKind,
+				inputPreviewUrl,
+				retryCount: 0,
+				isRetrying: false,
+			}
+		} catch (cause) {
+			URL.revokeObjectURL(inputPreviewUrl)
+			throw cause
+		}
 	}
 
 	async function pollJob(jobId: string, fileName?: string) {
@@ -227,43 +294,15 @@ export default function Page() {
 		if (files.length === 0) return
 		setBusy(true)
 		setError('')
+		clearQueuedJobArtifacts()
 		setJobs([])
-		latestJobStatusRef.current = {}
 		if (result?.url) URL.revokeObjectURL(result.url)
 		if (result?.inputUrl) URL.revokeObjectURL(result.inputUrl)
 		setResult(null)
 
 		try {
 			if (mode === 'async') {
-				const submittedJobs = await Promise.all(
-					files.map(async (pickedFile) => {
-						const form = new FormData()
-						form.set('media', pickedFile)
-						form.set('preset', preset)
-						const submitRes = await fetch('/api/media/jobs', { method: 'POST', body: form })
-						if (!submitRes.ok) {
-							let details = `request failed (${submitRes.status})`
-							try {
-								const payload = (await submitRes.json()) as { error?: string }
-								details = payload.error ?? details
-							} catch {
-								try {
-									details = await submitRes.text()
-								} catch {
-									// Keep fallback details
-								}
-							}
-							throw new Error(`${pickedFile.name}: ${details}`)
-						}
-						const submitted = (await submitRes.json()) as { jobId: string; status: JobStatus }
-						return {
-							jobId: submitted.jobId,
-							status: submitted.status,
-							downloadUrl: null,
-							fileName: pickedFile.name,
-						}
-					})
-				)
+				const submittedJobs = await Promise.all(files.map((pickedFile) => submitQueuedJob(pickedFile)))
 
 				setJobs(submittedJobs.map((job) => ({ ...job, error: undefined, result: undefined })))
 				toast.success(`Queued ${submittedJobs.length} file${submittedJobs.length === 1 ? '' : 's'}`, {
@@ -328,6 +367,60 @@ export default function Page() {
 			toast.error('Optimization failed', { description: message })
 		} finally {
 			setBusy(false)
+		}
+	}
+
+	async function retryFailedJob(job: JobState) {
+		const sourceFile = queuedJobFileRef.current[job.jobId]
+		if (!sourceFile) {
+			toast.error('Retry unavailable', {
+				description: 'Original input file is no longer available in memory.',
+			})
+			return
+		}
+
+		setJobs((current) => current.map((item) => (item.jobId === job.jobId ? { ...item, isRetrying: true } : item)))
+
+		try {
+			const replacement = await submitQueuedJob(sourceFile)
+			const previousPreview = queuedJobPreviewUrlRef.current[job.jobId]
+			if (previousPreview) URL.revokeObjectURL(previousPreview)
+			delete queuedJobPreviewUrlRef.current[job.jobId]
+			delete queuedJobFileRef.current[job.jobId]
+			delete latestJobStatusRef.current[job.jobId]
+
+			setJobs((current) =>
+				current.map((item) => {
+					if (item.jobId !== job.jobId) return item
+					return {
+						...replacement,
+						retryCount: (item.retryCount ?? 0) + 1,
+						isRetrying: false,
+					}
+				})
+			)
+
+			toast.message(`Retrying ${sourceFile.name}`)
+			try {
+				await pollJob(replacement.jobId, sourceFile.name)
+			} catch (cause) {
+				const message = cause instanceof Error ? cause.message : 'Retry failed'
+				updateJob(replacement.jobId, {
+					status: 'failed',
+					error: { message, code: 'retry-failed' },
+					isRetrying: false,
+				})
+			}
+		} catch (cause) {
+			const message = cause instanceof Error ? cause.message : 'Retry request failed'
+			setJobs((current) =>
+				current.map((item) =>
+					item.jobId === job.jobId
+						? { ...item, isRetrying: false, error: { message, code: 'retry-submit-failed' } }
+						: item
+				)
+			)
+			toast.error('Retry failed', { description: message })
 		}
 	}
 
@@ -476,6 +569,7 @@ export default function Page() {
 								<div className="pipe-job-row">
 									<span className={`pipe-job-pill is-${job.status}`}>{job.status}</span>
 									{job.fileName ? <strong>{job.fileName}</strong> : null}
+									{(job.retryCount ?? 0) > 0 ? <small>retry #{job.retryCount}</small> : null}
 									<code>{job.jobId}</code>
 								</div>
 								{job.result ? (
@@ -500,6 +594,46 @@ export default function Page() {
 								) : null}
 
 								{job.error ? <p className="pipe-error">{job.error.message}</p> : null}
+
+								{job.inputPreviewUrl && job.result && job.downloadUrl ? (
+									<div className="pipe-compare pipe-compare-queued">
+										<div className="pipe-preview-card">
+											<header>
+												<strong>Input</strong>
+												<small>{job.fileName ?? 'original file'}</small>
+											</header>
+											<div className="pipe-preview">
+												{job.inputKind === 'video' ? (
+													<video src={job.inputPreviewUrl} controls preload="metadata" />
+												) : (
+													<img src={job.inputPreviewUrl} alt={`Input preview for ${job.fileName ?? 'queued file'}`} />
+												)}
+											</div>
+										</div>
+
+										<div className="pipe-preview-card">
+											<header>
+												<strong>Output</strong>
+												<small>{job.result.filename}</small>
+											</header>
+											<div className="pipe-preview">
+												{job.result.kind === 'video' ? (
+													<video src={job.downloadUrl} controls preload="metadata" />
+												) : (
+													<img src={job.downloadUrl} alt={`Optimized preview for ${job.fileName ?? 'queued file'}`} />
+												)}
+											</div>
+										</div>
+									</div>
+								) : null}
+
+								{job.status === 'failed' ? (
+									<div className="pipe-job-actions">
+										<button type="button" className="pipe-retry" disabled={Boolean(job.isRetrying)} onClick={() => retryFailedJob(job)}>
+											{job.isRetrying ? 'Retrying...' : 'Retry Job'}
+										</button>
+									</div>
+								) : null}
 
 								{job.downloadUrl ? (
 									<a className="pipe-download" href={job.downloadUrl} target="_blank" rel="noreferrer">

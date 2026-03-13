@@ -8,6 +8,11 @@ on:
 permissions:
   contents: write
 
+env:
+  # Set repository variable PUBLIC_DIST_REPO to publish releases to a separate
+  # public repository, e.g. "patrickaigbogun/pipelyn-distribution".
+  DIST_REPO: ${{ vars.PUBLIC_DIST_REPO || github.repository }}
+
 jobs:
   release:
     name: Build & Release
@@ -92,11 +97,13 @@ jobs:
       # ── Publish GitHub Release ────────────────────────────────────────────
       - name: Create GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # For cross-repo publishing, set PUBLIC_DIST_REPO_TOKEN as a PAT with
+          # repo contents write permission on the target public repo.
+          GITHUB_TOKEN: ${{ secrets.PUBLIC_DIST_REPO_TOKEN || secrets.GITHUB_TOKEN }}
           VERSION: ${{ github.ref_name }}
         run: |
           gh release create "$VERSION" \
             apps/web/release-assets/* \
             --title "Pipelyn $VERSION" \
             --generate-notes \
-            --repo "$GITHUB_REPOSITORY"
+            --repo "$DIST_REPO"

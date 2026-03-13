@@ -1,24 +1,36 @@
 # install.ps1 — Pipelyn one-line installer for Windows
 #
 # Usage (PowerShell):
-#   irm https://raw.githubusercontent.com/patrickaigbogun/pipelyn/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/patrickaigbogun/pipelyn-distribution/main/install.ps1 | iex
 #
 # Environment overrides:
 #   $env:PIPELYN_VERSION    — pin a specific release tag (e.g. v1.0.0); defaults to latest
 #   $env:PIPELYN_INSTALL_DIR — where to install (default: $env:LOCALAPPDATA\pipelyn)
+#   $env:PIPELYN_RELEASE_REPO — release repo to download from (default: patrickaigbogun/pipelyn)
+#   $env:GITHUB_TOKEN        — optional token for private/internal release repos
 
 [CmdletBinding(SupportsShouldProcess)]
 param()
 
 $ErrorActionPreference = 'Stop'
 
-$REPO        = 'patrickaigbogun/pipelyn'
+$REPO        = if ($env:PIPELYN_RELEASE_REPO) { $env:PIPELYN_RELEASE_REPO } else { 'patrickaigbogun/pipelyn' }
 $InstallDir  = if ($env:PIPELYN_INSTALL_DIR) { $env:PIPELYN_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'pipelyn' }
+
+function Get-AuthHeaders {
+    if ($env:GITHUB_TOKEN) {
+        return @{
+            Authorization = "Bearer $($env:GITHUB_TOKEN)"
+            Accept        = 'application/vnd.github+json'
+        }
+    }
+    return @{}
+}
 
 # ── Resolve version ────────────────────────────────────────────────────────
 $version = $env:PIPELYN_VERSION
 if (-not $version) {
-    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$REPO/releases/latest"
+    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$REPO/releases/latest" -Headers (Get-AuthHeaders)
     $version = $release.tag_name
 }
 
@@ -42,12 +54,12 @@ New-Item -ItemType Directory -Force -Path $tmp | Out-Null
 try {
     $zipPath = Join-Path $tmp $zipName
     Write-Host "Downloading $zipName ..."
-    Invoke-WebRequest -Uri "$baseUrl/$zipName" -OutFile $zipPath -UseBasicParsing
+    Invoke-WebRequest -Uri "$baseUrl/$zipName" -OutFile $zipPath -UseBasicParsing -Headers (Get-AuthHeaders)
 
     # ── Verify checksum ────────────────────────────────────────────────────
     Write-Host 'Verifying checksum ...'
     $checksumsPath = Join-Path $tmp 'SHA256SUMS'
-    Invoke-WebRequest -Uri "$baseUrl/SHA256SUMS" -OutFile $checksumsPath -UseBasicParsing
+    Invoke-WebRequest -Uri "$baseUrl/SHA256SUMS" -OutFile $checksumsPath -UseBasicParsing -Headers (Get-AuthHeaders)
 
     $expected = (Get-Content $checksumsPath | Where-Object { $_ -match [regex]::Escape($zipName) }) -replace '\s+.*', ''
     $actual   = (Get-FileHash -Algorithm SHA256 -Path $zipPath).Hash.ToLower()

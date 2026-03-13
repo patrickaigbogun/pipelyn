@@ -6,16 +6,19 @@ the TypeScript SDK.
 
 ## Install
 
+Use the public distribution repository for installers and release artifacts.
+Set your actual distribution repo path below (example shown as `patrickaigbogun/pipelyn-distribution`).
+
 **Linux / macOS**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/patrickaigbogun/pipelyn/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/patrickaigbogun/pipelyn-distribution/main/install.sh | sh
 ```
 
 **Windows (PowerShell)**
 
 ```powershell
-irm https://raw.githubusercontent.com/patrickaigbogun/pipelyn/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/patrickaigbogun/pipelyn-distribution/main/install.ps1 | iex
 ```
 
 Then start the server:
@@ -76,7 +79,8 @@ cd packages/sdk && bun test tests   # run SDK tests
 
 ## Releases
 
-Download pre-built binaries from [GitHub Releases](https://github.com/patrickaigbogun/pipelyn/releases).
+Download pre-built binaries from your public distribution repo releases
+(example: [pipelyn-distribution releases](https://github.com/patrickaigbogun/pipelyn-distribution/releases)).
 Each release ships self-contained tarballs (`linux-x64`, `linux-arm64`, `darwin-x64`, `darwin-arm64`, `windows-x64`) — no runtime dependencies required.
 
 To publish a new release:
@@ -87,3 +91,15 @@ git tag v1.0.0 && git push origin v1.0.0
 
 The [release workflow](.github/workflows/release.yml) builds and publishes all platform
 binaries automatically.
+
+### Private source + public distribution setup
+
+Configure these in your private source repository:
+
+- Repository variable: `PUBLIC_DIST_REPO` (example: `patrickaigbogun/pipelyn-distribution`)
+- Repository secret: `PUBLIC_DIST_REPO_TOKEN` (PAT with contents write on the public repo)
+
+With those set:
+
+- `.github/workflows/release.yml` publishes `v*` tag binaries to the public repo's Releases.
+- `.github/workflows/sync-public-docs.yml` syncs `README.md`, installers, `.env.example`, and docs markdown to the public repo.

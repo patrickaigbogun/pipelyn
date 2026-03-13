@@ -2,18 +2,28 @@
 # install.sh — Pipelyn one-line installer for Linux and macOS
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/patrickaigbogun/pipelyn/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/patrickaigbogun/pipelyn-distribution/main/install.sh | sh
 #
 # Environment overrides:
 #   PIPELYN_VERSION   — pin a specific release tag (e.g. v1.0.0); defaults to latest
 #   PIPELYN_INSTALL_DIR — where to unpack the release (default: ~/.local/lib/pipelyn)
 #   PIPELYN_BIN_DIR   — where to put the `pipelyn` launcher (default: ~/.local/bin)
+#   PIPELYN_RELEASE_REPO — release repo to download from (default: patrickaigbogun/pipelyn)
+#   GITHUB_TOKEN      — optional token for private/internal release repos
 
 set -eu
 
-REPO="patrickaigbogun/pipelyn"
+REPO="${PIPELYN_RELEASE_REPO:-patrickaigbogun/pipelyn}"
 INSTALL_DIR="${PIPELYN_INSTALL_DIR:-$HOME/.local/lib/pipelyn}"
 BIN_DIR="${PIPELYN_BIN_DIR:-$HOME/.local/bin}"
+
+curl_get() {
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    curl -fsSL -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json" "$@"
+  else
+    curl -fsSL "$@"
+  fi
+}
 
 # ── Detect OS ──────────────────────────────────────────────────────────────
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -44,7 +54,7 @@ TARGET="${PLATFORM}-${ARCH_SLUG}"
 
 # ── Resolve version ────────────────────────────────────────────────────────
 if [ -z "${PIPELYN_VERSION:-}" ]; then
-  PIPELYN_VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+  PIPELYN_VERSION=$(curl_get "https://api.github.com/repos/${REPO}/releases/latest" \
     | grep '"tag_name"' \
     | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
 fi
@@ -68,11 +78,11 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
 echo "Downloading ${TARBALL} ..."
-curl -fsSL -o "$TMP/$TARBALL" "${BASE_URL}/${TARBALL}"
+curl_get -o "$TMP/$TARBALL" "${BASE_URL}/${TARBALL}"
 
 # ── Verify checksum ────────────────────────────────────────────────────────
 echo "Verifying checksum ..."
-curl -fsSL -o "$TMP/SHA256SUMS" "${BASE_URL}/SHA256SUMS"
+curl_get -o "$TMP/SHA256SUMS" "${BASE_URL}/SHA256SUMS"
 cd "$TMP"
 
 if command -v sha256sum >/dev/null 2>&1; then

@@ -1,0 +1,66 @@
+name: Sync Public Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - README.md
+      - install.sh
+      - install.ps1
+      - docs/content/docs/**
+      - .env.example
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    name: Sync docs/install to public repo
+    runs-on: ubuntu-latest
+    if: ${{ vars.PUBLIC_DIST_REPO != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync files
+        env:
+          TARGET_REPO: ${{ vars.PUBLIC_DIST_REPO }}
+          GH_TOKEN: ${{ secrets.PUBLIC_DIST_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "PUBLIC_DIST_REPO_TOKEN is not set; skipping sync."
+            exit 0
+          fi
+
+          if [[ -z "${TARGET_REPO:-}" ]]; then
+            echo "PUBLIC_DIST_REPO is not set; skipping sync."
+            exit 0
+          fi
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${TARGET_REPO}.git" /tmp/public-dist
+
+          mkdir -p /tmp/public-dist/docs
+
+          cp README.md /tmp/public-dist/README.md
+          cp install.sh /tmp/public-dist/install.sh
+          cp install.ps1 /tmp/public-dist/install.ps1
+          cp .env.example /tmp/public-dist/.env.example
+
+          rm -rf /tmp/public-dist/docs/content
+          mkdir -p /tmp/public-dist/docs/content
+          cp -r docs/content/docs /tmp/public-dist/docs/content/docs
+
+          cd /tmp/public-dist
+          chmod +x install.sh
+
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add -A
+            git commit -m "docs: sync from private source repo"
+            git push
+          else
+            echo "No public docs/install changes to sync."
+          fi

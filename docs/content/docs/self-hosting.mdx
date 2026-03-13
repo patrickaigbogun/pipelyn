@@ -8,10 +8,13 @@ No Node, no Bun, no runtime dependencies — just the binary and the built asset
 
 ## One-line install
 
+Use your public distribution/docs repository for install commands.
+Examples below assume `patrickaigbogun/pipelyn-distribution`.
+
 ### Linux / macOS
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/patrickaigbogun/pipelyn/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/patrickaigbogun/pipelyn-distribution/main/install.sh | sh
 ```
 
 This downloads the latest release for your platform, verifies the SHA-256 checksum, and
@@ -20,7 +23,7 @@ installs the launcher to `~/.local/bin/pipelyn`.
 ### Windows (PowerShell)
 
 ```powershell
-irm https://raw.githubusercontent.com/patrickaigbogun/pipelyn/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/patrickaigbogun/pipelyn-distribution/main/install.ps1 | iex
 ```
 
 Installs to `%LOCALAPPDATA%\pipelyn` and adds it to your user PATH.
@@ -29,19 +32,26 @@ Installs to `%LOCALAPPDATA%\pipelyn` and adds it to your user PATH.
 
 ```sh
 PIPELYN_VERSION=v1.0.0 \
-  curl -fsSL https://raw.githubusercontent.com/patrickaigbogun/pipelyn/main/install.sh | sh
+  curl -fsSL https://raw.githubusercontent.com/patrickaigbogun/pipelyn-distribution/main/install.sh | sh
+```
+
+You can also override release source inside the installer:
+
+```sh
+PIPELYN_RELEASE_REPO=patrickaigbogun/pipelyn-distribution \
+  curl -fsSL https://raw.githubusercontent.com/patrickaigbogun/pipelyn-distribution/main/install.sh | sh
 ```
 
 ---
 
 ## Manual install
 
-Download the tarball for your platform from the [Releases page](https://github.com/patrickaigbogun/pipelyn/releases), extract it, and run the binary directly.
+Download the tarball for your platform from your public distribution [Releases page](https://github.com/patrickaigbogun/pipelyn-distribution/releases), extract it, and run the binary directly.
 
 ```sh
 # Example: Linux x64
 VERSION=v1.0.0
-curl -LO "https://github.com/patrickaigbogun/pipelyn/releases/download/${VERSION}/pipelyn-${VERSION}-linux-x64.tar.gz"
+curl -LO "https://github.com/patrickaigbogun/pipelyn-distribution/releases/download/${VERSION}/pipelyn-${VERSION}-linux-x64.tar.gz"
 tar -xzf "pipelyn-${VERSION}-linux-x64.tar.gz"
 cd "pipelyn-${VERSION}-linux-x64"
 ./pipelyn
@@ -128,7 +138,7 @@ stateless deployments across multiple machines.
 Re-run the install script to upgrade to the latest release:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/patrickaigbogun/pipelyn/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/patrickaigbogun/pipelyn-distribution/main/install.sh | sh
 ```
 
 Or re-run the PowerShell command on Windows.

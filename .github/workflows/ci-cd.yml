@@ -25,6 +25,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Build app
+        working-directory: apps/web
         run: bun run build
 
       - name: Set up Docker Buildx

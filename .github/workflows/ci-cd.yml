@@ -39,7 +39,7 @@ jobs:
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: Dockerfile
+          context: apps/web
+          file: apps/web/Dockerfile
           push: true
           tags: otidockerhub/pipelyn:latest

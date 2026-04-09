@@ -7,9 +7,86 @@ on:
   workflow_dispatch:
 
 jobs:
-  publish:
-    name: Publish @pipelyn/sdk to npm
+  check-package:
+    name: Check npm package state
     runs-on: ubuntu-latest
+    outputs:
+      package_exists: ${{ steps.check.outputs.package_exists }}
+    steps:
+      - name: Check registry for package
+        id: check
+        shell: bash
+        run: |
+          set +e
+          curl -fsS "https://registry.npmjs.org/@pipelyn%2Fsdk" >/dev/null
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            echo "package_exists=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$status" -eq 22 ]; then
+            echo "package_exists=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Failed to query the npm registry (exit code $status)." >&2
+          exit "$status"
+
+  bootstrap-publish:
+    name: Bootstrap @pipelyn/sdk on npm
+    runs-on: ubuntu-latest
+    needs: check-package
+    if: needs.check-package.outputs.package_exists == 'false'
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      BOOTSTRAP_NPM_TOKEN: ${{ secrets.NPM_TOKEN || secrets.NPM_PUBLISH_TOKEN || secrets.NPM_AUTH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build SDK
+        run: bun run build
+        working-directory: packages/sdk
+
+      - name: SDK tests
+        run: bun test tests
+        working-directory: packages/sdk
+
+      - name: Verify bootstrap token is configured
+        shell: bash
+        run: |
+          if [ -z "$BOOTSTRAP_NPM_TOKEN" ]; then
+            echo "Set one of NPM_TOKEN, NPM_PUBLISH_TOKEN, or NPM_AUTH_TOKEN for the first npm publish."
+            exit 1
+          fi
+
+      - name: Publish to npm
+        run: npm publish --access public --provenance
+        working-directory: packages/sdk
+        env:
+          NODE_AUTH_TOKEN: ${{ env.BOOTSTRAP_NPM_TOKEN }}
+
+  trusted-publish:
+    name: Trusted publish @pipelyn/sdk
+    runs-on: ubuntu-latest
+    needs: check-package
+    if: needs.check-package.outputs.package_exists == 'true'
     permissions:
       contents: read
       id-token: write
@@ -20,6 +97,11 @@ jobs:
         with:
           bun-version: latest
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          registry-url: 'https://registry.npmjs.org'
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -28,13 +110,8 @@ jobs:
         working-directory: packages/sdk
 
       - name: SDK tests
-        run: bun run test
+        run: bun test tests
         working-directory: packages/sdk
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 'lts/*'
-          registry-url: 'https://registry.npmjs.org'
 
       - name: Publish to npm
         run: npm publish --access public --provenance

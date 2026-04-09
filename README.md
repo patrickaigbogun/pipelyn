@@ -35,6 +35,9 @@ Docker, Fly.io, and environment variable reference.
 
 ## SDK
 
+The SDK is distributed through npm as `@pipelyn/sdk`. The release workflow publishes it
+from `sdk-v*` tags once `NPM_TOKEN` is configured.
+
 ```sh
 bun add @pipelyn/sdk
 ```

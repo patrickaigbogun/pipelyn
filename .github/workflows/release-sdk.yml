@@ -33,8 +33,17 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 'lts/*'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: Verify npm token is configured
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "NPM_TOKEN is not configured in repository secrets."
+            exit 1
+          fi
 
       - name: Publish to npm
         run: npm publish --access public --provenance
